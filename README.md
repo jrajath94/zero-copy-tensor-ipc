@@ -3,11 +3,11 @@
 > Move gigabyte tensors between Python processes in microseconds instead of milliseconds
 
 [![CI](https://github.com/jrajath94/zero-copy-tensor-ipc/workflows/CI/badge.svg)](https://github.com/jrajath94/zero-copy-tensor-ipc/actions)
-[![Coverage](https://codecov.io/gh/jrajath94/zero-copy-tensor-ipc/branch/main/graph/badge.svg)](https://codecov.io/gh/jrajath94/zero-copy-tensor-ipc)
+[![Coverage](https://codecov.io/gh/jrajath94/zero-copy-tensor-ipc/branch/master/graph/badge.svg)](https://codecov.io/gh/jrajath94/zero-copy-tensor-ipc)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
-## The Problem
+## Why This Exists
 
 I was benchmarking a distributed training setup where one worker computes a batch (100MB tensor) and another worker needs it for preprocessing. Simple: pass it through a multiprocessing queue. What I found: passing 1GB through a standard queue takes 100-150ms. Serialization overhead alone was 80ms.
 

@@ -7,16 +7,13 @@ import numpy as np
 import pytest
 
 from zero_copy_tensor_ipc.ipc import (
-    SharedMemoryTensor,
-    TensorMetadata,
-    create_shared_tensor,
-    attach_shared_tensor,
-    list_active_segments,
-    cleanup_all_segments,
-    _validate_shape,
-    _validate_dtype,
     _compute_segment_size,
-    _ACTIVE_SEGMENTS,
+    _validate_dtype,
+    _validate_shape,
+    attach_shared_tensor,
+    cleanup_all_segments,
+    create_shared_tensor,
+    list_active_segments,
 )
 
 
@@ -112,7 +109,7 @@ class TestAttachSharedTensor:
         """Attached tensor reads the same data written by creator."""
         name = _unique_name()
         data = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
-        owner = create_shared_tensor(name, data=data)
+        _owner = create_shared_tensor(name, data=data)  # noqa: F841
 
         attached = attach_shared_tensor(name)
 
@@ -189,8 +186,8 @@ class TestSegmentRegistry:
         """Active segments are tracked in the registry."""
         name1 = _unique_name()
         name2 = _unique_name()
-        t1 = create_shared_tensor(name1, shape=(4,))
-        t2 = create_shared_tensor(name2, shape=(8,))
+        _t1 = create_shared_tensor(name1, shape=(4,))  # noqa: F841
+        _t2 = create_shared_tensor(name2, shape=(8,))  # noqa: F841
 
         active = list_active_segments()
         names = [m.name for m in active]

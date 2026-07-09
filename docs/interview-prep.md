@@ -8,7 +8,7 @@ I built a zero-copy tensor sharing library for distributed Python systems using 
 
 ### The Real Motivation
 
-At NVIDIA, I noticed that distributed training frameworks spent 40-60% of time on serialization/deserialization overhead when sharing model gradients and intermediate activations between processes. Standard IPC (pickling, JSON) added microsecond-level latencies that became critical at scale. I realized: modern hardware supports zero-copy IPC via shared memory. We should leverage it.
+At NVIDIA, I noticed that distributed training frameworks spent 40-60% of time on serialization/deserialization overhead when sharing model gradients and intermediate activations between processes. Standard IPC (pickling, JSON) added microsecond-level latencies that became critical at scale. I realized: modern hardware supports zero-copy IPC via shared memory. We should use it.
 
 ### Company-Specific Framing
 
@@ -34,7 +34,7 @@ At NVIDIA, I noticed that distributed training frameworks spent 40-60% of time o
 | Decision                             | Why                                                        | Tradeoff                                 |
 | ------------------------------------ | ---------------------------------------------------------- | ---------------------------------------- |
 | **Shared memory, not pipes/sockets** | Sub-microsecond attachment vs millisecond serialization    | Must be same machine (no network)        |
-| **NumPy integration**                | Seamless with ML code, no copies                           | Requires NumPy                           |
+| **NumPy integration**                | Works directly with ML code, no copies                           | Requires NumPy                           |
 | **Named regions**                    | Processes can attach without parent handle                 | Name collisions possible, must be unique |
 | **No automatic cleanup**             | Shared memory survives process death (useful for recovery) | Manual unlink required                   |
 
@@ -114,18 +114,18 @@ At NVIDIA, I noticed that distributed training frameworks spent 40-60% of time o
 | Metric                      | Value                     | Significance                       |
 | --------------------------- | ------------------------- | ---------------------------------- |
 | **Attachment latency**      | <1 microsecond            | Sub-millisecond IPC                |
-| **Zero copies**             | ✓ (by design)             | All access goes to original memory |
+| **Zero copies**             | Yes (by design)           | All access goes to original memory |
 | **Same-machine throughput** | Unlimited (RAM bandwidth) | Can be >100GB/s on modern systems  |
 | **Memory overhead**         | Negligible                | Just OS metadata, not data copies  |
 
 ## Interview Red Flags to Avoid
 
-❌ "I built this to learn multiprocessing" (too junior)
-❌ Can't explain why serialization is slow
-❌ Don't mention synchronization/safety concerns
-❌ Claim it works across networks (it doesn't)
+No: "I built this to learn multiprocessing" (too junior)
+No: Can't explain why serialization is slow
+No: Don't mention synchronization/safety concerns
+No: Claim it works across networks (it doesn't)
 
-✅ **Do this:**
+Yes, **do this:**
 
 - Show understanding of OS-level IPC primitives
 - Discuss failure modes and recovery strategies

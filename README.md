@@ -5,17 +5,13 @@
 [![CI](https://github.com/jrajath94/zero-copy-tensor-ipc/workflows/CI/badge.svg)](https://github.com/jrajath94/zero-copy-tensor-ipc/actions)
 [![Coverage](https://codecov.io/gh/jrajath94/zero-copy-tensor-ipc/branch/master/graph/badge.svg)](https://codecov.io/gh/jrajath94/zero-copy-tensor-ipc)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 
 ## Why This Exists
 
-I was benchmarking a distributed training setup where one worker computes a batch (100MB tensor) and another worker needs it for preprocessing. Simple: pass it through a multiprocessing queue. What I found: passing 1GB through a standard queue takes 100-150ms. Serialization overhead alone was 80ms.
+Python's multiprocessing module was designed to work around the GIL. You spawn separate processes to get true parallelism. But then you need to move data between those processes, and Python's default mechanism serializes everything into a byte stream, sends it through a pipe, and deserializes on the other side. For small objects, this is fine. For gigabyte tensors, serialization overhead becomes a bottleneck in distributed and multi-process workloads.
 
-Python's multiprocessing module was designed to work around the GIL. You spawn separate processes to get true parallelism. But then you need to move data between those processes, and Python's default mechanism serializes everything into a byte stream, sends it through a pipe, and deserializes on the other side. For small objects, this is fine. For gigabyte tensors, it is catastrophic.
-
-With 8 workers, if even 10% of time is spent serializing tensors between processes, that's free compute being wasted. On a $10k GPU, that's real money. At scale, the numbers get worse: 8 GPUs running V100s at $1.27/hour each, with serialization overhead consuming 1.4 workers' worth of compute, wastes $158 per GPU per month. Across an 8-GPU cluster, that's over $1,200/month in wasted serialization overhead.
-
-Shared memory is the solution. You allocate a block of memory in the kernel that multiple processes can see. Instead of sending the tensor data, you send just the metadata: shape, dtype, and the ID of the shared memory block. The receiving process attaches to that block and gets instant access. No copying.
+The standard approach copies tensor data multiple times: once to serialize, once to deserialize. At scale, this overhead adds up. Shared memory is the solution: allocate a block of memory in the kernel that multiple processes can access directly. Instead of sending the tensor data, you send just the metadata: shape, dtype, and the ID of the shared memory block. The receiving process attaches to that block and gets instant access. No copying.
 
 ## What This Project Does
 
@@ -82,15 +78,9 @@ tensor.close()  # Owner unlinks the segment
 
 ## Key Results
 
-| Method                                 | 1GB Transfer Time | Throughput   | Copies                      | Best For                        |
-| -------------------------------------- | ----------------- | ------------ | --------------------------- | ------------------------------- |
-| Standard serialization queue           | 142.3ms           | 7.0 GB/s     | 2 (serialize + deserialize) | Small objects (<10MB)           |
-| **POSIX shared memory (this project)** | **0.18ms**        | **5.6 TB/s** | **0 (true zero-copy)**      | **Large tensors, same machine** |
-| Ray object store (Plasma)              | 12.4ms            | 80.6 GB/s    | 1 (to/from object store)    | Distributed, multi-node         |
-| Apache Arrow Flight (gRPC)             | 85.2ms            | 11.7 GB/s    | 1 (network transfer)        | Cross-machine, cross-language   |
-| torch.multiprocessing (refcount)       | 0.22ms            | 4.5 TB/s     | 0 (shared CUDA/CPU memory)  | PyTorch-specific workflows      |
+This library enables true zero-copy tensor sharing between processes on the same machine via POSIX shared memory. Unlike standard multiprocessing queues that serialize and deserialize data, this approach achieves zero-copy access by mapping the same physical memory pages into multiple process address spaces.
 
-Standard serialization is **790x slower** than shared memory for a 1GB transfer. Real-world impact with 8 workers, 100MB batches, 10 batches/sec: serialization overhead consumes 1.4 workers' worth of GPU compute; shared memory cost is unmeasurable.
+For large tensors (gigabytes), shared memory eliminates the serialization bottleneck that occurs with standard multiprocessing queues. The cost is only the TLB lookup to resolve virtual-to-physical address translation.
 
 ## Design Decisions
 
@@ -126,8 +116,7 @@ The key insight: `/dev/shm` is a tmpfs filesystem that lives entirely in RAM. Th
 
 ```bash
 make test    # Unit + integration tests
-make bench   # Performance benchmarks
-make lint    # Ruff + mypy
+pytest tests/ -v --cov=src/zero_copy_tensor_ipc
 ```
 
 ## Project Structure
@@ -139,11 +128,8 @@ zero-copy-tensor-ipc/
     __init__.py       # Public API exports
   tests/
     test_core.py      # Shared memory creation, attachment, cleanup, edge cases
-    test_models.py    # Metadata validation tests
-  benchmarks/
-    bench_core.py     # Serialization vs shared memory benchmarks
-  examples/
-    quickstart.py     # Producer/consumer usage example
+  docs/
+    interview-prep.md # Development notes
 ```
 
 ## What I'd Improve
